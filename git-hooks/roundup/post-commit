@@ -1,0 +1,56 @@
+#!/usr/bin/python
+import os
+import re
+import time
+import xmlrpclib
+
+ISSUE_RE = "(issue[0-9]+)"
+FIX_RE = ".*[ ]*fix[es|ed]* .*" + ISSUE_RE
+MAIL_RE = "<(.*)>"
+
+RS_SERVER_URL = "http://devel:devel@dev.gisce.net/bugs/"
+
+
+def main():
+    rs = xmlrpclib.ServerProxy(RS_SERVER_URL, allow_none=True)
+    last_rev = os.popen("git rev-parse HEAD").read().strip()
+    branch = os.popen("git branch --no-color | grep '^\*'").read().strip()
+    branch = branch.split(" ")[1]
+    header = True
+    issues = []
+    fixed_issues = []
+    email = []
+    msg = 'Branch: %s\n' % branch
+    for line in map(str.strip, os.popen("git log --pretty=full %s^1..%s"
+                                        % (last_rev, last_rev)).readlines()):
+        msg += '%s\n' % line
+        vals = map(str.strip, line.split(':'))
+        if len(vals) == 2 and vals[0] == "Commit":
+            email += re.findall(MAIL_RE, vals[1])
+        if not line:
+            header = False
+        if not header:
+            issues += re.findall(ISSUE_RE, line)
+            fixed_issues += re.findall(FIX_RE, line, re.IGNORECASE)
+    if issues:
+        user = rs.filter('user', None, {'address': email})
+        if user:
+            user = user[0]
+    for issue in issues:
+        r_issue = rs.display(issue, 'messages', 'status')
+        messages = r_issue['messages']
+        status = r_issue['status']
+        messages += [rs.create('msg', "content=%s" % msg, "author=%s" % user,
+                               "date=%s"
+                               % time.strftime('%Y-%m-%d.%H:%M:%S.000'))]
+        status = '5'
+        cli_msg = 'Working in'
+        if issue in fixed_issues:
+            status = '8'
+            cli_msg = 'Fixing'
+        rs.set(issue, "messages=%s" % ','.join(messages), "status=%s" % status)
+        print("ROUNDUP hook: %s issue: http://dev.gisce.net/bugs/%s"
+              % (cli_msg, issue))
+
+if __name__ == "__main__":
+    main()

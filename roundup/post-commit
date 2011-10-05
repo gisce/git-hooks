@@ -8,7 +8,8 @@ ISSUE_RE = "(issue[0-9]+)"
 FIX_RE = ".*[ ]*fix[es|ed]* .*" + ISSUE_RE
 MAIL_RE = "<(.*)>"
 
-RS_SERVER_URL = "http://devel:devel@dev.gisce.net/bugs/"
+# Customize this URL!
+RS_SERVER_URL = "http://user:pwd@dev.gisce.net/bugs/"
 
 
 def main():
